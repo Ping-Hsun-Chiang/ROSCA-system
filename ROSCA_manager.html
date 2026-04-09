@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>標會管理系統</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{font-family:'Noto Sans TC',sans-serif;box-sizing:border-box}
+body{background:#f1f5f9;color:#1e293b;min-height:100vh;display:flex;flex-direction:column}
+main.content{flex:1}
+
+.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card-hover{transition:border-color .2s,box-shadow .2s}
+.card-hover:hover{border-color:#475569;box-shadow:0 2px 12px rgba(71,85,105,.1)}
+
+.btn-primary{background:#475569;color:#fff;font-weight:700;border-radius:10px;transition:all .15s;font-size:15px}
+.btn-primary:hover{background:#334155;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-danger{background:#dc2626;color:#fff;font-weight:600;border-radius:10px}
+.btn-danger:hover{background:#b91c1c}
+.btn-ghost{background:#fff;border:1px solid #cbd5e1;color:#64748b;border-radius:10px;transition:all .15s}
+.btn-ghost:hover{border-color:#475569;color:#475569}
+.btn-success{background:#16a34a;color:#fff;font-weight:600;border-radius:10px}
+.btn-success:hover{background:#15803d}
+.btn-draft{background:#fff;border:2px solid #64748b;color:#475569;font-weight:700;border-radius:10px;transition:all .15s}
+.btn-draft:hover{background:#f8fafc}
+
+input,select,textarea{background:#f8fafc;border:1.5px solid #cbd5e1;color:#1e293b;border-radius:10px;transition:border-color .15s;font-size:15px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#475569;box-shadow:0 0 0 3px rgba(71,85,105,.15)}
+textarea{resize:vertical}
+input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer}
+
+.badge-live{background:#dcfce7;color:#166534;font-weight:600}
+.badge-dead{background:#fee2e2;color:#991b1b;font-weight:600}
+.tag-inner{background:#dbeafe;color:#1e40af}
+.tag-outer{background:#f3e8ff;color:#6b21a8}
+
+.cb{appearance:none;width:24px;height:24px;border:2px solid #cbd5e1;border-radius:7px;cursor:pointer;position:relative;flex-shrink:0;transition:all .15s;background:#fff}
+.cb:checked{background:#475569;border-color:#475569}
+.cb:checked::after{content:'✓';position:absolute;top:-1px;left:4px;color:#fff;font-weight:900;font-size:15px}
+.cb:disabled{opacity:.45;cursor:default}
+
+.progress-bar{height:8px;border-radius:4px;background:#e2e8f0;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:#475569;transition:width .3s}
+
+.stat-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center}
+
+.footer{border-top:1px solid #e2e8f0;background:#fff;text-align:center;padding:18px;font-size:13px;color:#94a3b8}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:#fff;border:1px solid #e2e8f0;border-radius:18px;max-width:580px;width:100%;max-height:88vh;overflow-y:auto;padding:28px;box-shadow:0 8px 30px rgba(15,23,42,.12)}
+
+.grid-pay{display:grid;grid-template-columns:1fr;gap:0}
+@media(min-width:640px){.grid-pay{grid-template-columns:1fr 1fr}}
+
+.section-title{font-weight:700;font-size:13px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px}
+
+.accent{color:#334155}
+
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50" style="background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid #e2e8f0">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2 cursor-pointer" @click="goHome">
+        <span style="font-size:26px">🏦</span>
+        <span class="font-black text-xl accent">標會管理</span>
+      </div>
+      <button v-if="view!=='home'" class="btn-ghost px-3 py-1.5 text-sm" @click="goBack">← 返回</button>
+    </div>
+  </header>
+
+  <main class="content max-w-4xl mx-auto px-4 py-6 w-full">
+
+    <!-- HOME -->
+    <template v-if="view==='home'">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-black">我的標會</h1>
+        <button class="btn-primary px-5 py-2.5" @click="openCreate">＋ 新增標會</button>
+      </div>
+      <div v-if="huis.length===0" class="card p-12 text-center">
+        <p style="font-size:52px" class="mb-4">📋</p>
+        <p class="text-gray-400 text-lg">尚無標會，點擊上方按鈕建立第一個</p>
+      </div>
+      <div v-else class="space-y-3">
+        <div v-for="h in huis" :key="h.id" class="card card-hover p-5 cursor-pointer" @click="openDetail(h.id)">
+          <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span class="font-bold text-lg truncate">{{ h.name }}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full flex-shrink-0" :class="h.mode==='inner'?'tag-inner':'tag-outer'">{{ h.mode==='inner'?'內標':'外標' }}</span>
+                <span v-if="h.periods.length>=h.members.length" class="text-xs px-2 py-0.5 rounded-full flex-shrink-0 badge-live">已結束</span>
+              </div>
+              <div class="text-sm" style="color:#64748b">
+                會款 <span class="font-semibold" style="color:#1e293b">{{ fmt(h.baseAmount) }}</span>／{{ fl(h.frequency) }} ｜ 進度 <span class="font-semibold" style="color:#1e293b">{{ h.periods.length }}</span>/{{ h.members.length }} 期
+              </div>
+              <div class="progress-bar mt-2.5"><div class="progress-fill" :style="{width:(h.periods.length/h.members.length*100)+'%'}"></div></div>
+            </div>
+            <button class="btn-danger px-3 py-1.5 text-xs ml-3 flex-shrink-0" @click.stop="deleteHui(h.id)">刪除</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- CREATE -->
+    <template v-if="view==='create'">
+      <h1 class="text-2xl font-black mb-6">建立新標會</h1>
+      <div class="card p-6 space-y-5">
+        <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">標會名稱</label><input v-model="form.name" class="w-full px-4 py-3" placeholder="例：2026 買房互助會"></div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">計息模式</label><select v-model="form.mode" class="w-full px-4 py-3"><option value="inner">內標</option><option value="outer">外標</option></select></div>
+          <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">基本會款</label><input v-model.number="form.baseAmount" type="number" class="w-full px-4 py-3" placeholder="10000"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">開標日</label><input v-model="form.startDate" type="date" class="w-full px-4 py-3"></div>
+          <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">多久一期</label><select v-model="form.frequency" class="w-full px-4 py-3"><option value="monthly">每月</option><option value="biweekly">每兩週</option><option value="weekly">每週</option><option value="daily">每日</option></select></div>
+        </div>
+        <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">會首姓名</label><input v-model="form.hostName" class="w-full px-4 py-3" placeholder="會首姓名"></div>
+        <div>
+          <label class="text-sm font-semibold mb-2 block" style="color:#475569">會腳名單 <span class="text-xs font-normal" style="color:#94a3b8">（輸入後自動新增下一欄）</span></label>
+          <div class="space-y-2">
+            <div v-for="(_,i) in form.footNames" :key="i" class="flex gap-2 items-center">
+              <span class="text-sm w-7 text-right flex-shrink-0 font-medium" style="color:#94a3b8">{{ i+1 }}.</span>
+              <input v-model="form.footNames[i]" @input="onFootInput(i)" class="flex-1 px-4 py-3" :placeholder="'會腳 '+(i+1)+' 姓名'">
+              <button v-if="form.footNames.length>1&&(i<form.footNames.length-1||form.footNames[i].trim())" class="hover:text-red-500 px-2 text-xl leading-none" style="color:#94a3b8" @click="removeFoot(i)">✕</button>
+              <div v-else class="w-7"></div>
+            </div>
+          </div>
+        </div>
+        <div class="text-sm rounded-lg px-4 py-3" style="background:#f1f5f9;color:#64748b">總期數：<span class="font-bold text-base" style="color:#1e293b">{{ ffCount+1 }}</span> 期（會首 1 人 + 會腳 {{ ffCount }} 人）</div>
+        <div class="flex gap-3 pt-2">
+          <button class="btn-primary flex-1 py-3" :disabled="!canCreate" @click="view='confirm'">下一步：確認資訊</button>
+          <button class="btn-ghost flex-1 py-3" @click="goHome">取消</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- CONFIRM CREATE -->
+    <template v-if="view==='confirm'">
+      <h1 class="text-2xl font-black mb-6">確認標會資訊</h1>
+      <div class="card p-6">
+        <div v-for="row in confirmRows" :key="row[0]" class="flex justify-between py-3" style="border-bottom:1px solid #f1f5f9">
+          <span style="color:#64748b">{{ row[0] }}</span><span class="font-bold text-right">{{ row[1] }}</span>
+        </div>
+        <div class="pt-4">
+          <span class="block mb-2" style="color:#64748b">會腳（{{ ffCount }} 人）</span>
+          <div class="flex flex-wrap gap-2">
+            <span v-for="(n,i) in filledFeet" :key="i" class="text-sm px-3 py-1 rounded-full badge-live">{{ n }}</span>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-5">
+          <button class="btn-primary flex-1 py-3" @click="createHui">確認建立</button>
+          <button class="btn-ghost flex-1 py-3" @click="view='create'">返回修改</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- DETAIL -->
+    <template v-if="view==='detail'&&cur">
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-1 flex-wrap">
+          <h1 class="text-xl font-black">{{ cur.name }}</h1>
+          <span class="text-xs px-2 py-0.5 rounded-full" :class="cur.mode==='inner'?'tag-inner':'tag-outer'">{{ cur.mode==='inner'?'內標':'外標' }}</span>
+        </div>
+        <p class="text-sm" style="color:#64748b">會款 {{ fmt(cur.baseAmount) }}／{{ fl(cur.frequency) }} ｜ 開標日 {{ cur.startDate }}</p>
+        <div class="progress-bar mt-2"><div class="progress-fill" :style="{width:(cur.periods.length/cur.members.length*100)+'%'}"></div></div>
+        <p class="text-xs mt-1" style="color:#94a3b8">{{ cur.periods.length }} / {{ cur.members.length }} 期</p>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h2 class="section-title mb-3">成員狀態</h2>
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="m in cur.members" :key="m.id" class="text-xs px-2.5 py-1 rounded-full" :class="m.isDead?'badge-dead':'badge-live'">{{ m.name }}{{ m.isDead?' P'+m.wonPeriod:'' }}</span>
+        </div>
+      </div>
+
+      <!-- Next period -->
+      <div v-if="!isDone" class="card p-5 mb-4" style="border:2px solid #475569">
+        <h2 class="font-bold text-lg mb-3 accent">開標第 {{ nxtP }} 期 <span v-if="nxtP===cur.members.length" class="text-sm font-normal" style="color:#94a3b8">（最後一期）</span></h2>
+        <template v-if="nxtP===1">
+          <p class="mb-4" style="color:#64748b">首期由會首「<span class="font-bold" style="color:#1e293b">{{ cur.members[0].name }}</span>」無息得標</p>
+          <button class="btn-primary w-full py-3" @click="doFirst">確認首期開標</button>
+        </template>
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">得標者</label><select v-model="bid.winnerId" class="w-full px-4 py-3"><option value="">請選擇</option><option v-for="m in liveM" :key="m.id" :value="m.id">{{ m.name }}</option></select></div>
+            <div><label class="block text-sm font-semibold mb-1.5" style="color:#475569">得標標金</label><input v-model.number="bid.interest" type="number" min="0" class="w-full px-4 py-3" placeholder="0"></div>
+          </div>
+          <div v-if="bid.winnerId&&bid.interest>=0&&bid.interest!==''&&bid.interest!==null" class="rounded-xl p-4 mb-4" style="background:#f1f5f9;border:1px solid #e2e8f0">
+            <div class="flex items-center justify-between mb-3">
+              <span class="font-bold accent">📋 本期試算預覽</span>
+              <span class="text-xs" style="color:#94a3b8">{{ cur.mode==='inner'?'內標':'外標' }}制</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              <div class="stat-card" style="background:#fff"><div class="text-xs mb-1" style="color:#94a3b8">得標者領取</div><div class="font-black text-base accent">{{ fmt(pvTotal) }}</div></div>
+              <div class="stat-card" style="background:#fff"><div class="text-xs mb-1" style="color:#94a3b8">活會應繳</div><div class="font-bold text-base" style="color:#16a34a">{{ fmt(pvLive) }}</div></div>
+              <div class="stat-card" style="background:#fff"><div class="text-xs mb-1" style="color:#94a3b8">死會應繳</div><div class="font-bold text-base" style="color:#dc2626">{{ pvDeadVals.length?fmt(pvDeadVals[0]):'—' }}<span v-if="pvDeadVals.length>1" class="text-xs" style="color:#94a3b8"> (不等)</span></div></div>
+            </div>
+            <div class="grid-pay text-sm bg-white rounded-lg" style="border:1px solid #e2e8f0">
+              <div v-for="(it,idx) in pvList" :key="it.mid" class="flex items-center justify-between py-2 px-3" :style="(idx>0?'border-top:1px solid #f1f5f9;':'')+(it.w?'background:#f1f5f9':'')">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{background:it.w?'#475569':it.d?'#dc2626':'#16a34a'}"></span>
+                  <span class="truncate">{{ it.n }}</span>
+                </div>
+                <span class="font-semibold flex-shrink-0 ml-2" :style="{color:it.w?'#334155':''}">{{ it.w?'⭐ 得標':'$ '+fmt(it.a) }}</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary w-full py-3" :disabled="!bid.winnerId||bid.interest===''||bid.interest===null||bid.interest<0" @click="doBid">確認開標</button>
+        </template>
+      </div>
+
+      <div v-if="isDone" class="card p-5 mb-4 text-center" style="border:2px solid #16a34a">
+        <p class="text-xl font-black mb-2" style="color:#16a34a">🎉 此標會已全部結束</p>
+        <button class="btn-primary px-8 py-2.5 mt-1" @click="view='report'">查看統計報表</button>
+      </div>
+
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">歷期紀錄</h2>
+        <button v-if="isDone" class="btn-ghost px-3 py-1 text-xs" @click="view='report'">📊 報表</button>
+      </div>
+      <div v-if="cur.periods.length===0" class="text-sm mb-4" style="color:#94a3b8">尚無紀錄</div>
+      <div v-else class="space-y-2 mb-4">
+        <div v-for="p in rPeriods" :key="p.periodNum" class="card card-hover p-4 cursor-pointer" @click="openPeriod(p.periodNum,false)">
+          <div class="flex items-center justify-between">
+            <div class="min-w-0">
+              <span class="font-bold">第 {{ p.periodNum }} 期</span>
+              <span class="text-sm ml-2" style="color:#64748b">{{ mn(p.winnerId) }}</span>
+              <span class="text-sm ml-1" style="color:#94a3b8">標金 {{ fmt(p.winningInterest) }}</span>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs font-semibold" :class="pr(p)>=1?'text-green-600':'text-yellow-600'">{{ Math.round(pr(p)*100) }}% 已繳</span>
+              <span style="color:#cbd5e1">›</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- PERIOD DETAIL -->
+    <template v-if="view==='period'&&cur&&cP">
+      <div class="flex items-center justify-between mb-1">
+        <h1 class="text-xl font-black">第 {{ cP.periodNum }} 期</h1>
+        <button v-if="!pEdit" class="btn-ghost px-3 py-1.5 text-sm" @click="pEdit=true">✏️ 編輯</button>
+        <button v-else class="btn-success px-3 py-1.5 text-sm" @click="pEdit=false">✓ 完成編輯</button>
+      </div>
+      <div class="text-sm mb-4" style="color:#64748b">
+        得標者：<span class="font-bold" style="color:#1e293b">{{ mn(cP.winnerId) }}</span> ｜
+        標金：<span class="font-bold" style="color:#1e293b">{{ fmt(cP.winningInterest) }}</span> ｜
+        領取：<span class="font-black accent">{{ fmt(cP.totalCollected) }}</span>
+      </div>
+      <div class="card p-5 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="section-title">繳款明細</h2>
+          <span class="text-xs" style="color:#94a3b8">{{ cP.payments.filter(p=>p.isPaid).length }}/{{ cP.payments.length }} 已繳</span>
+        </div>
+        <div>
+          <div v-for="(pay,idx) in cP.payments" :key="pay.memberId" :style="idx>0?'border-top:1px solid #f1f5f9':''">
+            <div class="flex items-center justify-between py-3">
+              <div class="flex items-center gap-3">
+                <input type="checkbox" class="cb" :checked="pay.isPaid" @change="tPaid(cP.periodNum,pay.memberId)" :disabled="!pEdit">
+                <div>
+                  <span class="font-semibold">{{ mn(pay.memberId) }}</span>
+                  <span class="text-xs ml-2 px-2 py-0.5 rounded-full" :class="pStat(pay.memberId,cP.periodNum)==='dead'?'badge-dead':'badge-live'">{{ pStat(pay.memberId,cP.periodNum)==='dead'?'死會':'活會' }}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="font-bold text-base">{{ fmt(pay.amount) }}</span>
+                <span class="text-xs ml-2 font-semibold" :class="pay.isPaid?'text-green-600':'text-red-500'">{{ pay.isPaid?'✓ 已繳':'✕ 未繳' }}</span>
+              </div>
+            </div>
+            <div v-if="pEdit" class="pb-3 pl-10"><textarea v-model="pay.notes" @change="saveD" rows="1" class="w-full px-3 py-2 text-sm" placeholder="此人備註..."></textarea></div>
+            <div v-else-if="pay.notes" class="pb-2 pl-10 text-sm" style="color:#94a3b8">📝 {{ pay.notes }}</div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- REPORT -->
+    <template v-if="view==='report'&&cur">
+      <h1 class="text-2xl font-black mb-5">📊 統計報表</h1>
+      <div class="card p-5 mb-4">
+        <h2 class="font-bold mb-3 accent">標會總覽</h2>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div class="stat-card"><div class="text-xs mb-1" style="color:#94a3b8">名稱</div><div class="font-bold text-sm">{{ cur.name }}</div></div>
+          <div class="stat-card"><div class="text-xs mb-1" style="color:#94a3b8">模式</div><div class="font-bold text-sm">{{ cur.mode==='inner'?'內標':'外標' }}</div></div>
+          <div class="stat-card"><div class="text-xs mb-1" style="color:#94a3b8">基本會款</div><div class="font-bold text-sm">{{ fmt(cur.baseAmount) }}</div></div>
+          <div class="stat-card"><div class="text-xs mb-1" style="color:#94a3b8">總期數</div><div class="font-bold text-sm">{{ cur.members.length }} 期</div></div>
+        </div>
+      </div>
+      <div class="card p-5">
+        <h2 class="font-bold mb-3 accent">各成員盈虧分析</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-xs uppercase" style="color:#94a3b8"><th class="text-left py-2 pr-2">姓名</th><th class="text-right py-2 px-1">得標期</th><th class="text-right py-2 px-1">標金</th><th class="text-right py-2 px-1">領取</th><th class="text-right py-2 px-1">繳出</th><th class="text-right py-2 pl-1">盈虧</th></tr></thead>
+            <tbody>
+              <tr v-for="s in mStats" :key="s.id" style="border-top:1px solid #f1f5f9">
+                <td class="py-2.5 font-semibold pr-2">{{ s.name }}</td>
+                <td class="py-2.5 text-right px-1">{{ s.wp||'-' }}</td>
+                <td class="py-2.5 text-right px-1">{{ fmt(s.wi) }}</td>
+                <td class="py-2.5 text-right px-1 font-semibold accent">{{ fmt(s.recv) }}</td>
+                <td class="py-2.5 text-right px-1" style="color:#64748b">{{ fmt(s.paid) }}</td>
+                <td class="py-2.5 text-right pl-1 font-bold" :style="{color:s.prof>=0?'#16a34a':'#dc2626'}">{{ s.prof>=0?'+':'' }}{{ fmt(s.prof) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </main>
+
+  <footer class="footer">© 2026 Ping-Hsun Chiang 版權所有 ｜ 網站設計與維護</footer>
+
+  <!-- POST-BID MODAL -->
+  <div v-if="showModal" class="modal-overlay">
+    <div class="modal-box">
+      <h2 class="text-xl font-black mb-1">第 {{ modalP.periodNum }} 期開標完成 ✅</h2>
+      <p class="text-sm mb-1" style="color:#64748b">得標者：<span class="font-bold" style="color:#1e293b">{{ mn(modalP.winnerId) }}</span></p>
+      <p class="mb-4">可領取 <span class="font-black text-xl accent">{{ fmt(modalP.totalCollected) }}</span></p>
+      <div class="section-title mb-2">繳款勾選與備註</div>
+      <div style="max-height:45vh;overflow-y:auto" class="mb-4 rounded-xl" :style="'border:1px solid #e2e8f0'">
+        <div v-for="(pay,idx) in modalP.payments" :key="pay.memberId" :style="idx>0?'border-top:1px solid #f1f5f9':''" class="px-4">
+          <div class="flex items-center justify-between py-3">
+            <div class="flex items-center gap-3">
+              <input type="checkbox" class="cb" :checked="pay.isPaid" @change="pay.isPaid=!pay.isPaid;saveD()">
+              <span class="font-medium">{{ mn(pay.memberId) }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold">{{ fmt(pay.amount) }}</span>
+              <span class="text-xs font-semibold" :class="pay.isPaid?'text-green-600':'text-red-500'">{{ pay.isPaid?'已繳':'未繳' }}</span>
+            </div>
+          </div>
+          <div class="pb-3">
+            <textarea v-model="pay.notes" @change="saveD" rows="1" class="w-full px-3 py-2 text-sm" :placeholder="mn(pay.memberId)+' 的備註...'"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button class="btn-primary flex-1 py-3" @click="showModal=false">完成</button>
+        <button class="btn-draft flex-1 py-3" @click="showModal=false">暫存</button>
+      </div>
+      <p class="text-xs text-center mt-2" style="color:#94a3b8">資料已自動儲存，可稍後至歷期紀錄繼續編輯</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const{createApp,ref,computed,watch,onMounted}=Vue;
+createApp({
+  setup(){
+    const K='hui-mgr-v2',huis=ref([]),view=ref('home'),curId=ref(null),curPN=ref(null),pEdit=ref(false),showModal=ref(false),modalPN=ref(null);
+    const form=ref({name:'',mode:'inner',baseAmount:10000,startDate:'',frequency:'monthly',hostName:'',footNames:['']});
+    const bid=ref({winnerId:'',interest:0});
+
+    async function loadD(){try{const r=await window.storage.get(K);if(r&&r.value)huis.value=JSON.parse(r.value)}catch{try{const d=localStorage.getItem(K);if(d)huis.value=JSON.parse(d)}catch{}}}
+    async function saveD(){const j=JSON.stringify(huis.value);try{await window.storage.set(K,j)}catch{}try{localStorage.setItem(K,j)}catch{}}
+    watch(huis,saveD,{deep:true});
+    onMounted(loadD);
+
+    const cur=computed(()=>huis.value.find(h=>h.id===curId.value)||null);
+    const cP=computed(()=>cur.value?.periods.find(p=>p.periodNum===curPN.value)||null);
+    const modalP=computed(()=>cur.value?.periods.find(p=>p.periodNum===modalPN.value)||{payments:[],periodNote:''});
+    const liveM=computed(()=>cur.value?cur.value.members.filter(m=>!m.isDead):[]);
+    const nxtP=computed(()=>cur.value?cur.value.periods.length+1:1);
+    const isDone=computed(()=>cur.value?cur.value.periods.length>=cur.value.members.length:false);
+    const rPeriods=computed(()=>cur.value?[...cur.value.periods].sort((a,b)=>b.periodNum-a.periodNum):[]);
+    const filledFeet=computed(()=>form.value.footNames.filter(n=>n.trim()));
+    const ffCount=computed(()=>filledFeet.value.length);
+    const canCreate=computed(()=>form.value.name.trim()&&form.value.hostName.trim()&&ffCount.value>0&&form.value.baseAmount>0);
+    const confirmRows=computed(()=>[['名稱',form.value.name],['計息模式',form.value.mode==='inner'?'內標':'外標'],['基本會款',fmt(form.value.baseAmount)],['開標日',form.value.startDate||'未設定'],['頻率',fl(form.value.frequency)],['會首',form.value.hostName],['總期數',(ffCount.value+1)+' 期']]);
+
+    const pvList=computed(()=>{
+      if(!cur.value||!bid.value.winnerId||bid.value.interest===''||bid.value.interest===null||bid.value.interest<0)return[];
+      const h=cur.value,b=h.baseAmount,int=bid.value.interest;
+      return h.members.map(m=>{
+        if(m.id===bid.value.winnerId)return{mid:m.id,n:m.name,a:0,w:true,d:m.isDead};
+        let a;if(h.mode==='inner')a=m.isDead?b:b-int;else a=m.isDead?b+(m.wonInterest||0):b;
+        return{mid:m.id,n:m.name,a,w:false,d:m.isDead};
+      });
+    });
+    const pvTotal=computed(()=>pvList.value.reduce((s,p)=>s+(p.w?0:p.a),0));
+    const pvLive=computed(()=>{const p=pvList.value.find(x=>!x.w&&!x.d);return p?p.a:0});
+    const pvDeadVals=computed(()=>[...new Set(pvList.value.filter(x=>!x.w&&x.d).map(x=>x.a))]);
+
+    const mStats=computed(()=>{
+      if(!cur.value)return[];
+      return cur.value.members.map(m=>{
+        let paid=0,recv=0;
+        for(const p of cur.value.periods){if(p.winnerId===m.id)recv=p.totalCollected;const py=p.payments.find(x=>x.memberId===m.id);if(py)paid+=py.amount}
+        return{id:m.id,name:m.name,wp:m.wonPeriod,wi:m.wonInterest||0,recv,paid,prof:recv-paid};
+      });
+    });
+
+    const fmt=n=>n==null?'0':n.toLocaleString('zh-TW');
+    const mn=id=>cur.value?.members.find(m=>m.id===id)?.name||'?';
+    const pr=p=>p.payments.length===0?1:p.payments.filter(x=>x.isPaid).length/p.payments.length;
+    const fl=f=>({monthly:'每月',biweekly:'每兩週',weekly:'每週',daily:'每日'}[f]||'每月');
+    const pStat=(mid,pn)=>{const m=cur.value?.members.find(x=>x.id===mid);return m?.wonPeriod&&m.wonPeriod<pn?'dead':'live'};
+
+    function onFootInput(i){const a=form.value.footNames;if(a[i].trim()&&i===a.length-1)a.push('')}
+    function removeFoot(i){form.value.footNames.splice(i,1)}
+
+    function goHome(){view.value='home';curId.value=null;curPN.value=null;pEdit.value=false}
+    function goBack(){if(view.value==='period'){view.value='detail';curPN.value=null;pEdit.value=false}else if(view.value==='report')view.value='detail';else if(view.value==='confirm')view.value='create';else goHome()}
+    function openCreate(){form.value={name:'',mode:'inner',baseAmount:10000,startDate:'',frequency:'monthly',hostName:'',footNames:['']};view.value='create'}
+    function openDetail(id){curId.value=id;view.value='detail';bid.value={winnerId:'',interest:0}}
+    function openPeriod(n,ed){curPN.value=n;view.value='period';pEdit.value=!!ed}
+
+    function createHui(){
+      const f=form.value,feet=f.footNames.filter(n=>n.trim());
+      const members=[{id:'m0',name:f.hostName.trim(),isDead:false,wonPeriod:null,wonInterest:null},...feet.map((n,i)=>({id:'m'+(i+1),name:n.trim(),isDead:false,wonPeriod:null,wonInterest:null}))];
+      huis.value.push({id:Date.now().toString(),name:f.name,mode:f.mode,baseAmount:f.baseAmount,startDate:f.startDate,frequency:f.frequency,members,periods:[]});
+      openDetail(huis.value[huis.value.length-1].id);
+    }
+    function deleteHui(id){if(confirm('確定刪除？'))huis.value=huis.value.filter(h=>h.id!==id)}
+
+    function doFirst(){
+      const h=cur.value,host=h.members[0];
+      const payments=h.members.slice(1).map(m=>({memberId:m.id,amount:h.baseAmount,isPaid:false,notes:''}));
+      const total=payments.reduce((s,p)=>s+p.amount,0);
+      h.periods.push({periodNum:1,winnerId:host.id,winningInterest:0,totalCollected:total,payments,periodNote:''});
+      host.isDead=true;host.wonPeriod=1;host.wonInterest=0;
+      modalPN.value=1;showModal.value=true;
+    }
+    function doBid(){
+      const h=cur.value,pn=h.periods.length+1,{winnerId,interest}=bid.value;
+      if(!winnerId||interest===null||interest===''||interest<0)return;
+      const payments=[];let total=0;
+      for(const m of h.members){
+        if(m.id===winnerId)continue;
+        let a;if(h.mode==='inner')a=m.isDead?h.baseAmount:h.baseAmount-interest;else a=m.isDead?h.baseAmount+(m.wonInterest||0):h.baseAmount;
+        payments.push({memberId:m.id,amount:a,isPaid:false,notes:''});total+=a;
+      }
+      h.periods.push({periodNum:pn,winnerId,winningInterest:interest,totalCollected:total,payments,periodNote:''});
+      const w=h.members.find(m=>m.id===winnerId);w.isDead=true;w.wonPeriod=pn;w.wonInterest=interest;
+      bid.value={winnerId:'',interest:0};
+      modalPN.value=pn;showModal.value=true;
+    }
+    function tPaid(pn,mid){const p=cur.value.periods.find(x=>x.periodNum===pn).payments.find(x=>x.memberId===mid);p.isPaid=!p.isPaid}
+
+    return{huis,view,form,bid,cur,cP,curPN,liveM,nxtP,isDone,rPeriods,filledFeet,ffCount,canCreate,confirmRows,pEdit,showModal,modalP,modalPN,
+      pvList,pvTotal,pvLive,pvDeadVals,mStats,
+      fmt,mn,pr,fl,pStat,onFootInput,removeFoot,
+      goHome,goBack,openCreate,openDetail,openPeriod,
+      createHui,deleteHui,doFirst,doBid,tPaid,saveD};
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
